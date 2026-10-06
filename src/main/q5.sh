@@ -1,0 +1,10 @@
+#!/bin/bash
+# Q5：备份并修复配置，通过 input/tools.env 指定的工具检查和分流输出。
+# 完整接口与验收规格见 PROBLEM.md。只修改本文件，不修改测试或工具。
+set -eu
+input=${1:?需要输入目录}
+output=${2:?需要输出目录}
+
+# TODO：删除下方提示和 exit 77，再填写你的命令。
+printf '%s\n' 'Q5 尚未实现' >&2
+exit 77
