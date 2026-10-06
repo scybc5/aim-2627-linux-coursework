@@ -1,6 +1,6 @@
 # AIM 2627 Linux Coursework - 哨兵开发机交接
 
-> 全部任务、接口、评分与提交要求见 [题面.pdf](题面.pdf) 或其同内容文本版 [PROBLEM.md](PROBLEM.md)。本 README 说明如何开始和运行测试。
+> 全部任务、接口、评分与提交要求见 [题面.pdf](题面.pdf) 或其同内容文本版 [PROBLEM.md](PROBLEM.md)。PDF 使用 XeLaTeX 排版。本 README 说明如何开始和运行测试。
 >
 > **GitHub Actions 是唯一正式评估通道。全部测试公开，没有独立 grader、隐藏测试、操作截图分或人工答辩分。**
 
