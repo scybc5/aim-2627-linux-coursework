@@ -182,7 +182,7 @@ def main():
                 lines += [f"### {q['question']} 反馈", ""]
                 for check in failures:
                     lines += [f"- {check['name']}（{check['max_points']} 分）：", "", "```text", check["feedback"].replace("```", "'''"), "```", ""]
-        lines += ["完整分项见 score.json，执行输出见 runs.json，指定文本产物见 artifacts/。", "", "正式提交请提交本仓库的 main commit 链接及对应 Actions run 链接；具体收集入口由培训负责人公布。", ""]
+        lines += ["完整分项见 score.json，执行输出见 runs.json，指定文本产物见 artifacts/。", "", "正式提交请提交本仓库的对应 Actions run 链接【腾讯文档】AIM 2627 Linux Coursework 回执 https://docs.qq.com/form/page/DWlZKTFBibGR2T2tG", ""]
         (args.results / "summary.md").write_text("\n".join(lines))
         print(f"必做 {points}/100，Bonus {bonus}/10；{conclusion}")
         if args.question:
