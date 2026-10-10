@@ -6,6 +6,7 @@
 |---|---|
 | `coursework.py` | 全部场景的输入生成、训练环境准备、断言和评分权重 |
 | `test_feedback.py` | 终端诊断输出的回归检查，不给学生作业计分 |
+| `test_preflight.py` | 启动前检查程序的自检，不给学生作业计分 |
 | `skeleton-sha256.json` | 九个原始答题文件的校验值，用于识别尚未开始的模板 |
 | `__init__.py` | Python 测试模块入口 |
 

@@ -18,7 +18,7 @@ TASKS = {
     "Q2": ("建立工作区", [("目录结构", 4), ("空文件", 2), ("启动脚本", 2), ("配置文本", 2)]),
     "Q3": ("整理与权限", [("复制和备份", 3), ("移动归档", 2), ("删除临时目录", 1), ("精确权限", 2), ("执行脚本", 2)]),
     "Q4": ("日志分析", [("合并", 2), ("错误提取", 4), ("告警提取", 3), ("末尾日志", 2), ("首条错误", 2), ("错误计数", 2)]),
-    "Q5": ("配置修复", [("原始备份", 3), ("端口", 3), ("日志等级", 3), ("保留其他内容", 3), ("输出分流", 3)]),
+    "Q5": ("启动故障诊断", [("正常输出记录", 4), ("错误与提示记录", 4), ("真实退出状态", 4), ("诊断报告", 3)]),
     "Q6": ("安装开发工具", [("真实安装状态", 6), ("运行安装产物", 4)]),
     "Q7": ("SSH 与 SCP", [("客户端配置", 3), ("远程命令", 3), ("远程日志传输", 4)]),
     "Q8": ("进程与服务排障", [("进程识别", 3), ("正常停止", 3), ("保留其他进程", 2), ("采集日志", 2), ("修复配置", 3), ("HTTP 恢复", 4), ("服务清理", 3)]),
@@ -88,12 +88,6 @@ def require_directories(root, names):
     invalid = [describe_path(root / name) for name in names
                if not (root / name).is_dir() or (root / name).is_symlink()]
     require(not invalid, "期望普通目录，以下路径不存在、类型不符或为符号链接：\n" + "\n".join(invalid))
-
-
-def require_config_key(path, key, value):
-    actual = [line for line in text(path).splitlines() if line.startswith(key + "=")]
-    expected = [f"{key}={value}"]
-    require(actual == expected, f"{describe_path(path)} 有效键 {key} 不符\n期望：{short(expected)}\n实际：{short(actual)}")
 
 
 def snapshot_changes(before, after):
@@ -260,9 +254,22 @@ def simple_case(runtime, q, variant):
         case.write("boot.log", boot)
         case.write("run.log", run)
     elif q == "Q5":
-        old_port, level = (9000, "DEBUG") if variant == "normal" else (12001, "WARN")
-        case.write("robot.conf", f"# AIM handover\n# port={old_port}\n\nrobot=sentry\nport={old_port}\nbackup_port={old_port}\n# log_level={level}\nlog_level={level}\nowner={variant}\n")
-        case.write("tools.env", f"CHECK_TOOL={shlex.quote(str(runtime.tools / 'check-config.sh'))}\n")
+        model = case.input / "model weights.bin"
+        if variant != "model-missing":
+            case.write(model.name, f"training model for {variant}\n")
+        camera = case.state / "camera.device"
+        camera.write_text("simulated camera input\n")
+        camera.chmod(0o000 if variant == "camera-denied" else 0o444)
+        launch = runtime.tools / "sentry-preflight.sh"
+        env_file(case.input / "launch.env", {"LAUNCH_TOOL": launch, "MODEL_PATH": model, "CAMERA_PATH": camera})
+        # Independently invoke the provided program under the student's identity.
+        oracle = runtime.student(["bash", str(launch), str(model), str(camera)])
+        expected_code = {"ready": 0, "model-missing": 10, "camera-denied": 20}[variant]
+        require(oracle.returncode == expected_code, f"教师启动场景 {variant} 准备失败：期望退出 {expected_code}，实际 {oracle.returncode}；{oracle.stderr}")
+        reason = {0: "NONE", 10: "MODEL_MISSING", 20: "CAMERA_DENIED"}[expected_code]
+        result = "SUCCESS" if expected_code == 0 else "FAILED"
+        case.observations.update(stdout=oracle.stdout, stderr=oracle.stderr, exit_code=oracle.returncode,
+                                 report=f"result={result}\nexit_code={expected_code}\nreason={reason}\n")
     elif q == "Q6":
         version = "1.0.0" if variant == "normal" else "1.1.0"
         stage = case.root / "package staging"
@@ -441,10 +448,10 @@ def assert_check(case, index):
         equal(out / filename, content)
         return
     elif q == "Q5":
-        original = text(inp / "robot.conf")
-        actual = lambda: text(out / "robot.conf")
-        preserve = lambda data: "".join(line for line in data.splitlines(keepends=True) if not line.startswith(("port=", "log_level=")))
-        checks = [lambda: equal(out / "robot.conf.bak", original), lambda: require_config_key(out / "robot.conf", "port", "8080"), lambda: require_config_key(out / "robot.conf", "log_level", "INFO"), lambda: require(preserve(actual()) == preserve(original), "其他配置、注释或空行改变"), lambda: (equal(out / "check.out", "CONFIG OK\n"), equal(out / "check.err", "NOTICE: training check only\n"))]
+        checks = [lambda: equal(out / "stdout.log", obs["stdout"]),
+                  lambda: equal(out / "stderr.log", obs["stderr"]),
+                  lambda: equal(out / "exit-code.txt", f"{obs['exit_code']}\n"),
+                  lambda: equal(out / "report.txt", obs["report"])]
     elif q == "Q6":
         root = out / "sysroot"
         query = subprocess.run(["dpkg-query", f"--admindir={root / 'var/lib/dpkg'}", "-W", "-f=${Status}|${Version}\n", "aim-sentry-tools"], capture_output=True, text=True)
@@ -488,6 +495,8 @@ def evaluate(runtime, selected):
             cases = [process_case(runtime, name) for name in ("wrong-port", "wrong-route")]
         elif q == "B":
             cases = [bonus_case(runtime)]
+        elif q == "Q5":
+            cases = [simple_case(runtime, q, name) for name in ("ready", "model-missing", "camera-denied")]
         else:
             variants = ("normal", "no-errors", "empty", "short") if q == "Q4" else ("normal", "changed")
             cases = [simple_case(runtime, q, name) for name in variants]

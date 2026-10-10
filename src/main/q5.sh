@@ -1,5 +1,5 @@
 #!/bin/bash
-# Q5：备份并修复配置，通过 input/tools.env 指定的工具检查和分流输出。
+# Q5：运行 launch.env 给定的启动前检查，保存 stdout/stderr、真实退出码和诊断报告。
 # 完整接口与验收规格见 Problem.pdf。只修改本文件，不修改测试或工具。
 set -eu
 input=${1:?需要输入目录}

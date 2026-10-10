@@ -65,6 +65,8 @@ Q8 额外接收 `repair`／`cleanup`，Bonus 额外接收 `start`／`stop`。具
 
 `source` 读取的 `.env` 文件也是测试器为本次场景生成的参数。Q7 使用临时 SSH 密钥，Q8 使用训练进程，不需要学生设置真实机器人或个人 SSH 服务。
 
+Q5 是启动故障诊断：运行提供的启动前检查，分别记录 stdout/stderr、真实退出码和诊断报告。检查程序可能正常退出，也可能因缺少模型或设备不可读而失败；答题脚本处理并记录这些结果后仍应正常退出。具体字段和分值看 PDF 的 Q5。
+
 [samples/README.md](samples/README.md) 解释了静态样例的用途和单次练习方法。样例不是完整自测环境；CI 使用的变化数据、空日志和动态参数由 [tests/coursework.py](tests/coursework.py) 生成。仅让一个样例跑通不等于该题通过。
 
 ## 4. 在 GitHub 查看结果
@@ -167,6 +169,7 @@ agent-session-commit install --pre-commit
 - **`grep` 没匹配就退出？** 骨架启用了 `set -e`；无匹配通常返回 1，但 Q4 的无错误日志是正常输入，需按题面处理。
 - **为什么不能只运行 `bash src/main/q4.sh`？** 脚本需要输入／输出参数。完整自测用 `tools/test.sh`；单次样例练习看 samples 的说明。
 - **Q6 为什么不能 sudo 安装？** 题目要求安装到自己的 sysroot，按 PDF 使用 dpkg 的非 root 选项。
+- **Q5 检查程序失败，答题脚本也该失败吗？** 不应该。按题面捕获检查程序的退出码，完成日志和报告；不要用 `|| true` 后的 `$?` 当作原始退出码，也不要仅凭 stderr 是否非空判断成功。
 - **Q7 密钥或连接参数在哪？** 测试器生成的 `remote.env` 中，不用个人 SSH 密钥。
 - **Q8 修好后应立即停服务吗？** `repair` 返回时保留运行，测试器会独立发 HTTP 请求；`cleanup` 才停止。
 - **Actions 没有运行？** 确认推送到 main，仓库已允许 Actions；也可从工作流页面手动运行。

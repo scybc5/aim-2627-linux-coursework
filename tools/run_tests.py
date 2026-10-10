@@ -107,7 +107,7 @@ class Runtime:
             "Q2": ["sentry_ws/scripts/hello.sh", "sentry_ws/config/robot.conf"],
             "Q3": ["hello-output.txt", "sentry_ws/config/robot.conf", "sentry_ws/archive/draft.conf.old"],
             "Q4": ["all.log", "errors.log", "attention.log", "recent.log", "first-errors.log", "error-count.txt"],
-            "Q5": ["robot.conf", "robot.conf.bak", "check.out", "check.err"],
+            "Q5": ["stdout.log", "stderr.log", "exit-code.txt", "report.txt"],
             "Q6": ["tool-output.txt"], "Q7": ["remote-user.txt", "received/errors.log"],
             "Q8": ["process.txt", "collector-sample.log", "server.conf", "http-status.txt", "http-body.txt"],
             "B": ["bonus.log"],

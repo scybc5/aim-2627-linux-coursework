@@ -7,7 +7,7 @@
 | `q1/` | 目录定位与读取 | 隐藏的 `.robot-id`、交接说明和欢迎文本 |
 | `q3/` | 文件整理 | 正式配置、草稿、脚本和临时缓存 |
 | `q4/` | 日志分析 | 启动日志、运行日志，以及消息中出现 ERROR 的 INFO 行 |
-| `q5/` | 配置修复 | 有效配置、注释和 `backup_port` 等相似键 |
+| `q5/` | 启动故障诊断 | 三种启动场景、退出码和输出记录说明 |
 
 例如，在仓库根目录用 Q4 样例练习已经实现的脚本：
 
@@ -19,4 +19,4 @@ cat generated/practice-q4/errors.log
 
 这只执行一次脚本，不自动评分，也不等价于通过 Q4。完整自测用 `bash tools/test.sh --question Q4`，正式成绩看 GitHub Actions。
 
-Q5 的工具路径、Q6 的 Debian 包、Q7 的 SSH 连接、Q8 的进程与 HTTP 服务、Bonus 的 tmux 参数由测试器准备。不要尝试仅凭这些静态文件运行全部题目。所有实际测试场景及生成规则公开在 `tests/coursework.py`。
+Q5 的 `launch.env` 和检查用文件、Q6 的 Debian 包、Q7 的 SSH 连接、Q8 的进程与 HTTP 服务、Bonus 的 tmux 参数由测试器准备。不要尝试仅凭这些静态文件运行全部题目。所有实际测试场景及生成规则公开在 `tests/coursework.py`。
