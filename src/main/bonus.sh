@@ -1,6 +1,6 @@
 #!/bin/bash
 # Bonus：start 时创建分离的 tmux 会话和采集器；stop 时正常停止采集器并结束会话。
-# 完整接口与验收规格见 PROBLEM.md。只修改本文件，不修改测试或工具。
+# 完整接口与验收规格见 Problem.pdf。只修改本文件，不修改测试或工具。
 set -eu
 input=${1:?需要输入目录}
 output=${2:?需要输出目录}

@@ -88,7 +88,7 @@ class Runtime:
         self.records.append({"question": case.question, "case": case.name, "action": action, "exit_code": proc.returncode, "stdout": proc.stdout[-4000:], "stderr": proc.stderr[-4000:]})
 
     def archive(self, case):
-        # Only designated text outputs, never private keys or input fixtures.
+        # Only designated text outputs, never private keys or test inputs.
         names = {
             "Q1": ["location.txt", "robot-id.txt", "welcome.txt"],
             "Q2": ["sentry_ws/scripts/hello.sh", "sentry_ws/config/robot.conf"],
@@ -161,7 +161,7 @@ def main():
         points = sum(q["points"] for q in required)
         bonus = sum(q["points"] for q in questions if q["question"] == "B")
         all_pending = all(q["status"] == "pending" for q in questions)
-        skeleton_hashes = json.loads((ROOT / "fixtures/skeleton-sha256.json").read_text())
+        skeleton_hashes = json.loads((ROOT / "tests/skeleton-sha256.json").read_text())
         pristine = all(hashlib.sha256((runtime.submission / name).read_bytes()).hexdigest() == expected for name, expected in skeleton_hashes.items())
         complete = len(required) == 8 and all(q["status"] == "passed" for q in required)
         passed = len(required) == 8 and points >= 60 and all(any(q["question"] == key and q["status"] == "passed" for q in required) for key in ("Q7", "Q8"))

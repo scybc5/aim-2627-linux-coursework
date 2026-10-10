@@ -1,4 +1,4 @@
-"""Public task specifications, fixtures and weighted assertions. No private grader."""
+"""Public task scenarios, input generation and weighted assertions. No private grader."""
 import hashlib
 import os
 from pathlib import Path

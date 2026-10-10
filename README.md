@@ -1,105 +1,155 @@
 # AIM 2627 Linux Coursework - 哨兵开发机交接
 
-> 全部任务、接口、评分与提交要求见 [题面.pdf](题面.pdf) 或其同内容文本版 [PROBLEM.md](PROBLEM.md)。PDF 使用 XeLaTeX 排版。本 README 说明如何开始和运行测试。
->
-> **GitHub Actions 是唯一正式评估通道。全部测试公开，没有独立 grader、隐藏测试、操作截图分或人工答辩分。**
+**先读 [Problem.pdf](Problem.pdf)，再填写 `src/main/` 中的 Bash 脚本。** PDF 是任务、接口和评分要求的唯一学生题面。本 README 说明环境、仓库结构、自测和提交流程。
 
-## 1. 环境
+正式成绩只由 GitHub Actions 产生：8 道必做题共 100 分，Bonus 额外最多 10 分。通过条件是 **必做至少 60 分，且 Q7、Q8 的全部检查通过**。所有评分测试公开。
 
-- 学生环境：课程要求的 Ubuntu 24.04 LTS 虚拟机，amd64／arm64 均可；答题文件使用 Bash、UTF-8、LF 换行。
-- 正式 CI：GitHub hosted `ubuntu-24.04` runner，直接执行测试；无需 Docker。
-- Windows／macOS 可以编辑文件并推送自测；需要本地完整测试时，请进入 Ubuntu 虚拟机。
-- 不需要安装 ROS、连接机器人或编写 Python 程序。`tools/`、`tests/` 中的 Python 是教师提供的基础设施。
+## 1. 从哪里开始
 
-## 2. 快速开始
-
-1. 在模板仓库的 GitHub 页面点击 **Use this template → Create a new repository**，创建自己的仓库。
-2. 克隆你的仓库，在 main 分支完成作业：
+1. 在 [课程模板仓库](https://github.com/unnc-aim/aim-2627-linux-coursework) 点击 **Use this template → Create a new repository**，创建自己的仓库。不要直接在教师仓库作答，也不要用 Fork 代替模板创建。
+2. 克隆你创建的仓库，在 main 分支开发：
 
    ```bash
-   git clone https://github.com/<你的用户名>/<你的仓库>.git
-   cd <你的仓库>
+   git clone https://github.com/<你的用户名>/<你的仓库名>.git
+   cd <你的仓库名>
    ```
 
-3. 阅读题面，依次填写 `src/main/q1.sh` 至 `q8.sh`。选做题填写 `bonus.sh`。
-4. 每个骨架末尾有 `exit 77`，表示“未实现”。开始实现时删除该行和对应提示。只删除提示却不实现任务不能得分。
-5. 提交并推送，查看 **Actions → Linux Coursework CI → 最新运行 → Summary**。
+3. 打开 [Problem.pdf](Problem.pdf)，从 Q1 开始填写对应的 `src/main/q1.sh`。Q2–Q8 分别对应 `q2.sh`–`q8.sh`，选做题对应 `bonus.sh`。
+4. 每题骨架已提供参数读取和 `set -eu`。实现时删除末尾的提示语句和 `exit 77`，填写自己的命令。
+5. 自测或推送到 GitHub CI，按反馈修改。最后提交对应的 Actions run 链接。
 
-   ```bash
-   git add src/main
-   git commit -m "Complete Q1 path navigation"
-   git push origin main
-   ```
+`exit 77` 表示“未实现”，该题记 0 分。原始模板可以初始化成功，但不代表通过考核；开始答题后，未达到通过条件的完整 CI 会失败，仍会显示分项成绩。
 
-CI 会显示每题、小项、必做总分、Bonus 和通过结论。原始骨架可初始化成功，但成绩是 0 分、结论是“未开始”；开始答题后，未达到通过条件的完整 CI 会失败。
+## 2. 各个目录做什么
 
-## 3. 本地自测
+```text
+仓库根目录/
+├── README.md                    # 环境、使用方式和提交步骤
+├── Problem.pdf                  # 完整题面，只读
+├── src/main/
+│   ├── q1.sh … q8.sh            # 必做题：你填写的脚本
+│   └── bonus.sh                 # 选做题：你填写的脚本
+├── samples/                     # 静态输入样例，帮助阅读和练习
+├── tests/
+│   ├── coursework.py            # 全部公开场景、断言和评分权重
+│   └── skeleton-sha256.json     # 原始骨架识别数据
+├── tools/                       # 测试入口和教师训练程序
+├── .github/workflows/ci.yml     # GitHub Actions 自动评估
+├── .vscode/                     # 推荐的编辑器设置
+└── generated/                   # 自测生成的成绩与产物，自动创建
+```
 
-只在自己的 Ubuntu 训练虚拟机中执行。先安装教师测试依赖：
+| 内容 | 你需要做什么 | 是否提交修改 |
+|---|---|---|
+| `src/main/q1.sh`–`q8.sh`、`bonus.sh` | 阅读骨架并填写命令 | **是，这是答题区域** |
+| `Problem.pdf`、`README.md` | 阅读题目与操作说明 | 否 |
+| `samples/` | 打开样例文件，理解输入 | 否 |
+| `tests/` | 可阅读测试和权重，理解反馈 | 否 |
+| `tools/`、`.github/`、其余配置 | 使用提供的入口 | 否 |
+| `generated/` | 查看本地结果 | 否，已被 Git 忽略 |
+| `.agent-sessions/` | 可选 AI 会话归档 | 可提交，归档不计分 |
+
+保留全部 9 个答题文件，未做的题保留骨架。不要删除、改名、增加其他答题文件或换成符号链接。答题脚本由 Bash 调用，不需要给它们增加执行权限。
+
+## 3. 答题脚本如何运行
+
+Q1–Q7 接收输入目录和输出目录两个参数：
+
+```bash
+bash src/main/qN.sh INPUT_DIRECTORY OUTPUT_DIRECTORY
+```
+
+Q8 额外接收 `repair`／`cleanup`，Bonus 额外接收 `start`／`stop`。具体文件格式、输出和动作要求看 PDF 对应题目。
+
+**测试器会自动准备并传入这些参数。** 它会创建本题的输入、输出和临时环境，再执行你的脚本。不要把用户名、仓库位置、端口、PID 或包版本写死；路径可能包含空格，使用骨架中的 `input`、`output` 并正确引用。
+
+`source` 读取的 `.env` 文件也是测试器为本次场景生成的参数。Q7 使用临时 SSH 密钥，Q8 使用训练进程，不需要学生设置真实机器人或个人 SSH 服务。
+
+[samples/README.md](samples/README.md) 解释了静态样例的用途和单次练习方法。样例不是完整自测环境；CI 使用的变化数据、空日志和动态参数由 [tests/coursework.py](tests/coursework.py) 生成。仅让一个样例跑通不等于该题通过。
+
+## 4. 在 GitHub 查看结果
+
+在仓库根目录提交答题文件：
+
+```bash
+bash -n src/main/q1.sh           # 可选：先检查 Bash 语法
+
+git add src/main
+git commit -m "Complete Q1 path navigation"
+git push origin main
+```
+
+打开 **Actions → Linux Coursework CI → 与本次 commit 对应的运行**：
+
+1. 在 Summary 查看必做总分、Bonus、每题状态和通过结论。
+2. 如果某题失败，查看反馈中的小项、场景和实际结果。
+3. 下载页面底部的 artifact，查看执行输出和指定文本产物。
+
+| 输出 | 用途 |
+|---|---|
+| `summary.md` | 分题成绩及失败反馈，与 Actions Summary 一致 |
+| `score.json` | 每个小项的分数，以及 `assessment_passed` 通过状态 |
+| `runs.json` | 脚本退出状态、stdout 和 stderr |
+| `artifacts/` | 指定的文本产物，便于对照 PDF |
+
+未实现的小项记 0 分；通过某题的部分小项可以取得部分分数。**正式通过结论看 Summary 和 `assessment_passed`**；不要把原始模板的初始化成功当成考核通过，也不要用单题本地测试代替完整 CI。
+
+如果基础设施检查或环境准备失败，可能没有有效成绩，先查看失败步骤。学生仓库只允许修改答题文件和可选会话归档；CI 以初始模板提交检查累计变更，并从该版本提取可信测试。不要修改测试、校验表、PDF、README 或工作流，也不要重建 Git 历史。
+
+## 5. 本地自测（可选）
+
+正式 CI 直接运行在 GitHub hosted `ubuntu-24.04` runner，**不需要 Docker**。Windows／macOS 可以编辑脚本并通过推送自测。需要本地完整自测时，进入课程要求的 Ubuntu 24.04 LTS 训练虚拟机；支持 amd64／arm64。
+
+在 Ubuntu 安装一次测试依赖：
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y python3 openssh-client openssh-server tmux procps curl dpkg
+sudo apt-get install -y git python3 openssh-client openssh-server tmux procps curl dpkg
 ```
 
-运行全部测试，或只测试一题：
+在仓库根目录运行：
 
 ```bash
-bash tools/test.sh
-bash tools/test.sh --question Q4
-bash tools/test.sh --question Q7 --question Q8
-bash tools/test.sh --question B
+bash tools/test.sh                               # 全部题目
+bash tools/test.sh --question Q4                 # 单题
+bash tools/test.sh --question Q7 --question Q8    # 多题
+bash tools/test.sh --question B                  # Bonus
 ```
 
-测试器需要 sudo 来创建临时测试账户与 SSH 服务，**学生脚本以临时普通用户执行，不具备 sudo 权限**。临时账户、进程和目录在测试后清理。测试仅连接本机回环地址，不改你的个人 SSH 配置、不使用你的密钥、不重启系统 SSH 服务。首次 apt 安装依赖需要网络，正式题目用例不依赖公网。
+结果写入 `generated/`，文件含义与 CI artifact 相同。单题自测只用于调试，正式成绩仍取完整 GitHub CI。
 
-结果写入 `generated/`：
+测试器需要 sudo 创建临时账户和 SSH 服务；**学生脚本以临时普通用户执行，没有 sudo 权限**。测试会自动准备本地 Debian 包、SSH 连接、进程、HTTP 服务和 tmux 参数，并在结束后清理本次临时环境。正式题目用例使用回环网络，不依赖公网网站；首次安装依赖需要网络。
 
-| 文件 | 内容 |
-|---|---|
-| `summary.md` | 和 Actions Summary 相同的得分与反馈 |
-| `score.json` | 分题、小项、总分和通过状态 |
-| `runs.json` | 各次脚本的退出状态、标准输出和标准错误 |
-| `artifacts/` | 指定文本产物，便于对照题面 |
+答题文件使用 Bash、UTF-8 和 LF 换行。学生不需要编写 Python，`tests/` 和 `tools/` 中的 Python 是教师提供的测试与训练程序。
 
-单题自测只帮助调试，不是正式总成绩。正式成绩取指定 main commit 对应的完整 CI。`generated/` 不提交。
+## 6. 提交
 
-## 4. 仓库结构与修改范围
+完成后确认最新代码已推送到 main，打开与这个 commit 对应的完整 CI，复制 Actions run 链接并填写：
 
-| 路径 | 用途 | 可否修改 |
-|---|---|---|
-| `src/main/q1.sh`–`q8.sh` | 必做题答题脚本 | 可以 |
-| `src/main/bonus.sh` | 选做题答题脚本 | 可以 |
-| `.agent-sessions/` | 可选 AI 会话归档 | 可以 |
-| `PROBLEM.md`、`题面.pdf`、`README.md` | 规格和使用说明 | 不可 |
-| `tests/`、`tools/`、`fixtures/` | 全部公开测试、训练程序和素材 | 不可 |
-| `.github/`、`.vscode/` 与其余配置 | CI 和基础设施 | 不可 |
+**[AIM 2627 Linux Coursework 回执](https://docs.qq.com/form/page/DWlZKTFBibGR2T2tG)**
 
-请保留所有 9 个答题文件，未做的题继续保留骨架。不得删除、改名或换成符号链接；无需赋予答题文件执行权限，评测器通过 Bash 调用。
+填写表单要求的信息；如需仓库或 commit 链接，一并提交。截止日期以培训通知为准。请提交本次实际评估的运行，不提交其他 commit 的成功截图或本地单题结果。
 
-学生仓库的 CI 以仓库初始模板提交为基准检查累计修改，并从该提交取出测试运行。因此修改测试、评分权重、题面或 CI 不属于合法提交。不要用 `git init` 重建历史或合并不相关仓库。
+## 7. AI 辅助与可选归档
 
-## 5. AI 使用与归档
+允许使用课程资料、命令手册和 AI 辅助。正式分数由 CI 的公开行为检查产生，不设置人工答辩分或独立 grader。
 
-允许查阅课程、命令手册、同伴解释和 AI 辅助。提交的脚本需要遵守公开规格，用真实命令完成任务；测试会更换路径、内容、版本和端口。
-
-与 Python 模板保持一致，提供可选 AgentLedger 会话归档配置：
+模板提供与 Python 作业一致的可选 AgentLedger 归档配置；不启用也不影响分数。需要归档时自行配置：
 
 ```bash
 python3 -m pip install 'agent-session-commit[pre-commit]==0.1.3' -i https://pypi.org/simple
 agent-session-commit install --pre-commit
 ```
 
-归档不参与评分，未使用 AI 无需安装。若启用归档，先确认会话没有密码、令牌或个人密钥；归档是普通 Git 内容，可能随公开仓库推送。
+归档会作为 Git 内容提交，使用前确认没有密码、令牌或个人密钥。不要为启用归档改动教师提供的配置文件。
 
-## 6. 常见问题
+## 8. 常见问题
 
-- **`grep` 没找到匹配后脚本提前退出？** 无匹配通常返回 1；Q4 中没有错误是正常输入，需处理这个状态。
-- **本地能跑、CI 路径不对？** 使用传入的输入／输出目录，引用含空格路径；不要写死用户名、仓库位置、PID、端口或包版本。
-- **Q6 提示不是 root？** 本题安装到指定 sysroot；按题面使用 dpkg 的非 root 选项，不使用 sudo。
-- **Q7 找不到自己的 SSH 密钥？** 不使用个人密钥。读取测试器提供的 `remote.env` 和临时密钥路径。
-- **Q8 修好后立刻停止服务了？** `repair` 返回时必须保持服务运行，教师会独立发送 HTTP 请求；收到 `cleanup` 才停止它。
-- **Actions 没有运行？** 确认推送到 main、仓库允许 Actions；也可用 workflow_dispatch 手动触发。
-- **CI 显示红色，但有分数？** 仍可在 Summary 查看小项得分。基础设施检查失败时则没有有效成绩。
-
-正式提交方式见题面末尾；收集入口和截止时间由培训负责人另行公布。
+- **刚开始 CI 成功，为什么是 0 分？** 原始骨架只验证环境能启动，所有题仍未实现。
+- **`grep` 没匹配就退出？** 骨架启用了 `set -e`；无匹配通常返回 1，但 Q4 的无错误日志是正常输入，需按题面处理。
+- **为什么不能只运行 `bash src/main/q4.sh`？** 脚本需要输入／输出参数。完整自测用 `tools/test.sh`；单次样例练习看 samples 的说明。
+- **Q6 为什么不能 sudo 安装？** 题目要求安装到自己的 sysroot，按 PDF 使用 dpkg 的非 root 选项。
+- **Q7 密钥或连接参数在哪？** 测试器生成的 `remote.env` 中，不用个人 SSH 密钥。
+- **Q8 修好后应立即停服务吗？** `repair` 返回时保留运行，测试器会独立发 HTTP 请求；`cleanup` 才停止。
+- **Actions 没有运行？** 确认推送到 main，仓库已允许 Actions；也可从工作流页面手动运行。
+- **CI 红了，还能看到分数吗？** 答题检查失败时通常可以；环境准备失败则没有有效成绩。先看 Summary，再看失败步骤。

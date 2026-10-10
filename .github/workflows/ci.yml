@@ -43,7 +43,7 @@ jobs:
             python3 "$RUNNER_TEMP/aim-check-integrity.py"
           fi
           mkdir -p "$RUNNER_TEMP/aim-trusted" generated
-          git archive "$BASE" tools tests fixtures | tar -x -C "$RUNNER_TEMP/aim-trusted"
+          git archive "$BASE" tools tests | tar -x -C "$RUNNER_TEMP/aim-trusted"
           sudo chown -R root:root "$RUNNER_TEMP/aim-trusted"
           sudo chmod -R go-w "$RUNNER_TEMP/aim-trusted"
 
