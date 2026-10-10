@@ -114,9 +114,27 @@ bash tools/test.sh                               # 全部题目
 bash tools/test.sh --question Q4                 # 单题
 bash tools/test.sh --question Q7 --question Q8    # 多题
 bash tools/test.sh --question B                  # Bonus
+bash tools/test.sh --question Q3 --verbose       # 同时查看成功执行的 stdout/stderr
 ```
 
-结果写入 `generated/`，文件含义与 CI artifact 相同。单题自测只用于调试，正式成绩仍取完整 GitHub CI。
+默认终端输出包括每次运行的场景与状态、每个评分小项的分数，以及失败原因。脚本执行失败时会显示退出码、stdout、stderr；Bash 命令失败时还会提示脚本行号和命令。权限不符会显示期望／实际权限，文本不符会定位第一处差异。`--verbose` 额外显示成功执行的输出。
+
+示例（只做输出格式说明）：
+
+```text
+Q3 整理与权限
+  [PASS] 复制和备份：3/3
+  [FAIL] 精确权限：0/2
+    normal：
+      输出/sentry_ws/scripts/hello.sh：期望权限 750，实际权限 777
+    changed：
+      输出/sentry_ws/scripts/hello.sh：期望权限 750，实际权限 777
+  结果：failed，8/10
+```
+
+如果某个场景的脚本中断，该场景未进入产物检查，会导致对应小项失败；先处理上方“场景失败”的执行错误。特别注意第 2 次运行失败，通常与重复创建、重复追加或删除不存在的文件有关。
+
+结果同时写入 `generated/`，文件含义与 CI artifact 相同。`runs.json` 包含执行轮次与捕获的输出，`score.json` 的每个小项包含分场景结果。终端和报告中超过捕获长度的执行输出会标明截断。单题自测只用于调试，正式成绩仍取完整 GitHub CI。
 
 测试器需要 sudo 创建临时账户和 SSH 服务；**学生脚本以临时普通用户执行，没有 sudo 权限**。测试会自动准备本地 Debian 包、SSH 连接、进程、HTTP 服务和 tmux 参数，并在结束后清理本次临时环境。正式题目用例使用回环网络，不依赖公网网站；首次安装依赖需要网络。
 

@@ -52,6 +52,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends openssh-client openssh-server tmux procps curl dpkg
 
+      - name: Check diagnostic feedback
+        run: python3 -m unittest discover -s "$RUNNER_TEMP/aim-trusted/tests" -p "test_feedback.py" -v
+
       - name: Evaluate all public cases
         id: tests
         shell: bash

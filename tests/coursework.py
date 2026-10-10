@@ -11,6 +11,8 @@ import time
 import urllib.error
 import urllib.request
 
+from tools.feedback import question_lines
+
 TASKS = {
     "Q1": ("找到开发目录", [("路径定位", 4), ("隐藏文件", 3), ("文本读取", 3)]),
     "Q2": ("建立工作区", [("目录结构", 4), ("空文件", 2), ("启动脚本", 2), ("配置文本", 2)]),
@@ -31,8 +33,22 @@ def require(condition, message):
         raise AssertionError(message)
 
 
+def describe_path(path):
+    for parent in path.parents:
+        if parent.name in {"input materials", "output results"}:
+            label = "输入" if parent.name == "input materials" else "输出"
+            return f"{label}/{path.relative_to(parent)}"
+    return str(path)
+
+
+def short(value, limit=240):
+    rendered = repr(value)
+    return rendered if len(rendered) <= limit else rendered[:limit] + "…（已截断）"
+
+
 def text(path):
-    require(path.is_file() and not path.is_symlink(), f"缺少普通文件：{path.name}")
+    kind = "符号链接" if path.is_symlink() else "目录" if path.is_dir() else "不存在"
+    require(path.is_file() and not path.is_symlink(), f"{describe_path(path)}：期望普通文件，实际为{kind}")
     require(not any(parent.is_symlink() for parent in path.parents), "产物父目录不能是符号链接")
     require(path.stat().st_size <= 1_000_000, "文本产物超过 1 MB")
     return path.read_text(encoding="utf-8")
@@ -40,7 +56,63 @@ def text(path):
 
 def equal(path, expected):
     actual = text(path)
-    require(actual == expected, f"{path.name} 内容不符：期望 {expected[:180]!r}，得到 {actual[:180]!r}")
+    if actual == expected:
+        return
+    position = next((i for i, (a, b) in enumerate(zip(expected, actual)) if a != b), min(len(expected), len(actual)))
+    line = expected[:position].count("\n") + 1
+    column = position - expected.rfind("\n", 0, position)
+    expected_lines, actual_lines = expected.splitlines(keepends=True), actual.splitlines(keepends=True)
+    want = short(expected_lines[line - 1]) if line <= len(expected_lines) else "<文件已结束>"
+    got = short(actual_lines[line - 1]) if line <= len(actual_lines) else "<文件已结束>"
+    raise AssertionError(
+        f"{describe_path(path)} 内容不符（第一处差异：第 {line} 行，第 {column} 列）\n"
+        f"期望行：{want}\n实际行：{got}\n"
+        f"期望 {len(expected)} 字符/{len(expected_lines)} 行；实际 {len(actual)} 字符/{len(actual_lines)} 行"
+    )
+
+
+def require_permissions(pairs):
+    errors = []
+    for path, expected in pairs:
+        try:
+            actual = path.stat().st_mode & 0o777
+        except FileNotFoundError:
+            errors.append(f"{describe_path(path)}：期望权限 {expected:03o}，实际文件不存在")
+            continue
+        if actual != expected:
+            errors.append(f"{describe_path(path)}：期望权限 {expected:03o}，实际权限 {actual:03o}")
+    require(not errors, "\n".join(errors))
+
+
+def require_directories(root, names):
+    invalid = [describe_path(root / name) for name in names
+               if not (root / name).is_dir() or (root / name).is_symlink()]
+    require(not invalid, "期望普通目录，以下路径不存在、类型不符或为符号链接：\n" + "\n".join(invalid))
+
+
+def require_config_key(path, key, value):
+    actual = [line for line in text(path).splitlines() if line.startswith(key + "=")]
+    expected = [f"{key}={value}"]
+    require(actual == expected, f"{describe_path(path)} 有效键 {key} 不符\n期望：{short(expected)}\n实际：{short(actual)}")
+
+
+def snapshot_changes(before, after):
+    changes = []
+    for name in sorted(before.keys() | after.keys()):
+        if name not in before:
+            changes.append(f"新增：{name}")
+        elif name not in after:
+            changes.append(f"消失：{name}")
+        elif before[name] != after[name]:
+            old, new = before[name], after[name]
+            detail = "内容或类型变化"
+            if old[0] == new[0] and old[0] in {"file", "dir"} and old[1] != new[1]:
+                detail = f"权限 {old[1]:03o} → {new[1]:03o}"
+            changes.append(f"改变：{name}（{detail}）")
+        if len(changes) == 10:
+            changes.append("仅显示前 10 处变化")
+            break
+    return "\n".join(changes)
 
 
 def snapshot(root):
@@ -98,6 +170,7 @@ class Case:
         for folder in (self.output, self.state):
             os.chown(folder, runtime.uid, runtime.gid)
         self.error = None
+        self.attempts = 0
         self.pending = False
         self.observations = {}
         self.processes = []
@@ -111,17 +184,19 @@ class Case:
 
     def execute(self, action=None):
         script = "bonus.sh" if self.question == "B" else f"{self.question.lower()}.sh"
-        args = ["bash", str(self.runtime.submission / script), str(self.input), str(self.output)]
+        args = ["bash", "-E", str(self.runtime.submission / script), str(self.input), str(self.output)]
         if action is not None:
             args.append(action)
         before = snapshot(self.input)
-        result = self.runtime.student(args, cwd=self.output, timeout=15)
+        self.attempts += 1
+        result = self.runtime.student(args, cwd=self.output, timeout=15, diagnose=True)
         self.runtime.record(self, action or "run", result)
         if result.returncode == 77:
             self.pending = True
             return
-        require(result.returncode == 0, f"脚本退出 {result.returncode}：{result.stderr[-600:]}")
-        require(snapshot(self.input) == before, "输入素材被修改")
+        require(result.returncode == 0, f"{script} 第 {self.attempts} 次调用退出 {result.returncode}，未进入产物检查。\n{result.stderr[-600:] or 'stderr 为空；请检查显式 exit、函数返回值或 stdout 中的提示。'}")
+        after = snapshot(self.input)
+        require(after == before, "输入素材被修改：\n" + snapshot_changes(before, after))
 
     def twice(self):
         self.execute()
@@ -134,7 +209,7 @@ class Case:
         after = snapshot(self.output)
         if self.question == "Q6":
             after = {k: v for k, v in after.items() if not k.startswith("sysroot/var/lib/dpkg/")}
-        require(after == before, "第二次运行改变了产物内容、结构或权限")
+        require(after == before, "第二次运行改变了产物内容、结构或权限：\n" + snapshot_changes(before, after))
 
     def launch(self, args, log_name):
         log = open(self.state / log_name, "w")
@@ -353,10 +428,10 @@ def assert_check(case, index):
         checks = [lambda: equal(out / "location.txt", str(inp / "handover") + "\n"), lambda: equal(out / "robot-id.txt", text(inp / "handover/.robot-id")), lambda: equal(out / "welcome.txt", text(inp / "notes/welcome.txt"))]
     elif q == "Q2":
         ws = out / "sentry_ws"
-        checks = [lambda: require(all((ws / p).is_dir() and not (ws / p).is_symlink() for p in ("scripts", "config", "logs", "tmp")), "缺少目标目录"), lambda: (equal(ws / "logs/.keep", ""), equal(ws / "tmp/scratch.txt", "")), lambda: equal(ws / "scripts/hello.sh", HELLO), lambda: equal(ws / "config/robot.conf", CONFIG)]
+        checks = [lambda: require_directories(ws, ("scripts", "config", "logs", "tmp")), lambda: (equal(ws / "logs/.keep", ""), equal(ws / "tmp/scratch.txt", "")), lambda: equal(ws / "scripts/hello.sh", HELLO), lambda: equal(ws / "config/robot.conf", CONFIG)]
     elif q == "Q3":
         ws = out / "sentry_ws"
-        checks = [lambda: (equal(ws / "scripts/hello.sh", HELLO), equal(ws / "config/robot.conf", text(inp / "robot.conf")), equal(ws / "backup/robot.conf", text(inp / "robot.conf"))), lambda: (equal(ws / "archive/draft.conf.old", text(inp / "draft.conf")), require(not (ws / "config/draft.conf").exists(), "草稿源位置仍存在")), lambda: require(not (ws / "tmp").exists(), "tmp 未删除"), lambda: require((ws / "scripts/hello.sh").stat().st_mode & 0o777 == 0o750 and (ws / "config/robot.conf").stat().st_mode & 0o777 == 0o640, "权限不是 750/640"), lambda: (equal(out / "hello-output.txt", "Hello, AIM Linux!\n"), require(case.runtime.student([str(ws / "scripts/hello.sh")]).stdout == "Hello, AIM Linux!\n", "脚本不能直接执行"))]
+        checks = [lambda: (equal(ws / "scripts/hello.sh", HELLO), equal(ws / "config/robot.conf", text(inp / "robot.conf")), equal(ws / "backup/robot.conf", text(inp / "robot.conf"))), lambda: (equal(ws / "archive/draft.conf.old", text(inp / "draft.conf")), require(not (ws / "config/draft.conf").exists(), "草稿源位置仍存在")), lambda: require(not (ws / "tmp").exists(), "tmp 未删除"), lambda: require_permissions([(ws / "scripts/hello.sh", 0o750), (ws / "config/robot.conf", 0o640)]), lambda: (equal(out / "hello-output.txt", "Hello, AIM Linux!\n"), require(case.runtime.student([str(ws / "scripts/hello.sh")]).stdout == "Hello, AIM Linux!\n", "脚本不能直接执行"))]
     elif q == "Q4":
         all_lines = (text(inp / "boot.log") + text(inp / "run.log")).splitlines(keepends=True)
         errors = [line for line in all_lines if line.startswith("ERROR ")]
@@ -369,22 +444,33 @@ def assert_check(case, index):
         original = text(inp / "robot.conf")
         actual = lambda: text(out / "robot.conf")
         preserve = lambda data: "".join(line for line in data.splitlines(keepends=True) if not line.startswith(("port=", "log_level=")))
-        checks = [lambda: equal(out / "robot.conf.bak", original), lambda: require([line for line in actual().splitlines() if line.startswith("port=")] == ["port=8080"], "有效端口未精确修改"), lambda: require([line for line in actual().splitlines() if line.startswith("log_level=")] == ["log_level=INFO"], "有效日志等级未修改"), lambda: require(preserve(actual()) == preserve(original), "其他配置、注释或空行改变"), lambda: (equal(out / "check.out", "CONFIG OK\n"), equal(out / "check.err", "NOTICE: training check only\n"))]
+        checks = [lambda: equal(out / "robot.conf.bak", original), lambda: require_config_key(out / "robot.conf", "port", "8080"), lambda: require_config_key(out / "robot.conf", "log_level", "INFO"), lambda: require(preserve(actual()) == preserve(original), "其他配置、注释或空行改变"), lambda: (equal(out / "check.out", "CONFIG OK\n"), equal(out / "check.err", "NOTICE: training check only\n"))]
     elif q == "Q6":
         root = out / "sysroot"
         query = subprocess.run(["dpkg-query", f"--admindir={root / 'var/lib/dpkg'}", "-W", "-f=${Status}|${Version}\n", "aim-sentry-tools"], capture_output=True, text=True)
         expected = f"SENTRY TOOL {obs['version']}\n"
-        checks = [lambda: require(query.returncode == 0 and query.stdout == f"install ok installed|{obs['version']}\n", "dpkg 数据库没有记录正确的已安装版本"), lambda: (require(case.runtime.student([str(root / "usr/bin/aim-sentry-info")]).stdout == expected, "安装产物无法运行"), equal(out / "tool-output.txt", expected))]
+        checks = [lambda: require(query.returncode == 0 and query.stdout == f"install ok installed|{obs['version']}\n", f"dpkg 数据库没有记录正确的已安装版本\n期望：install ok installed|{obs['version']}\n实际退出状态：{query.returncode}\n实际 stdout：{short(query.stdout)}\n实际 stderr：{short(query.stderr)}"), lambda: (require(case.runtime.student([str(root / "usr/bin/aim-sentry-info")]).stdout == expected, "安装产物无法运行"), equal(out / "tool-output.txt", expected))]
     elif q == "Q7":
         resolved = obs.get("ssh_config", "")
         config = text(out / "ssh_config")
         conn = obs.get("connection")
-        checks = [lambda: require("host aim-sentry" in resolved and "stricthostkeychecking true" in resolved and "identitiesonly yes" in resolved and str(inp / "known_hosts") in resolved and str(inp / "client_key") in resolved and "Host aim-sentry" in config and (out / "ssh_config").stat().st_mode & 0o777 == 0o600, "别名、密钥、已知主机或权限配置不符"), lambda: (equal(out / "remote-user.txt", case.runtime.remote_user + "\n"), require(conn is not None and conn.returncode == 0 and conn.stdout == case.runtime.remote_user + "\n", "教师复连失败"), require("Accepted publickey" in obs.get("auth_log", ""), "未验证公钥认证")), lambda: (equal(out / "received/errors.log", obs["expected_log"]), require("subsystem 'sftp'" in obs.get("auth_log", "") or "command 'scp " in obs.get("auth_log", ""), "服务端没有文件传输会话"))]
+        checks = [lambda: require("host aim-sentry" in resolved and "stricthostkeychecking true" in resolved and "identitiesonly yes" in resolved and str(inp / "known_hosts") in resolved and str(inp / "client_key") in resolved and "Host aim-sentry" in config and (out / "ssh_config").stat().st_mode & 0o777 == 0o600, "别名、密钥、已知主机或权限配置不符"), lambda: (equal(out / "remote-user.txt", case.runtime.remote_user + "\n"), require(conn is not None and conn.returncode == 0 and conn.stdout == case.runtime.remote_user + "\n", f"教师 SSH 复连失败\n期望：退出 0，返回用户 {case.runtime.remote_user}\n实际：{'未完成复连' if conn is None else f'退出 {conn.returncode}, stdout={short(conn.stdout)}, stderr={short(conn.stderr)}'}"), require("Accepted publickey" in obs.get("auth_log", ""), "未验证公钥认证")), lambda: (equal(out / "received/errors.log", obs["expected_log"]), require("subsystem 'sftp'" in obs.get("auth_log", "") or "command 'scp " in obs.get("auth_log", ""), "服务端没有文件传输会话"))]
     elif q == "Q8":
         def identification():
             data = text(out / "process.txt")
-            values = dict(line.split("=", 1) for line in data.splitlines())
-            require(values.get("pid") == str(obs["pid"]) and values.get("user") == case.runtime.user and values.get("state", "")[:1] in "RS" and obs["token"] in values.get("command", ""), "process.txt 中 PID、所有者、状态或命令行不符")
+            lines = data.splitlines()
+            for number, line in enumerate(lines, 1):
+                require("=" in line, f"输出/process.txt 第 {number} 行应为 key=value，实际：{short(line)}")
+            values = dict(line.split("=", 1) for line in lines)
+            errors = []
+            for key, expected in (("pid", str(obs["pid"])), ("user", case.runtime.user)):
+                if values.get(key) != expected:
+                    errors.append(f"{key}：期望 {expected!r}，实际 {values.get(key)!r}")
+            if values.get("state", "")[:1] not in "RS":
+                errors.append(f"state：期望 R/S 开头，实际 {values.get('state')!r}")
+            if obs["token"] not in values.get("command", ""):
+                errors.append(f"command：期望包含 {obs['token']!r}，实际 {short(values.get('command'))}")
+            require(not errors, "输出/process.txt 字段不符：\n" + "\n".join(errors))
         checks = [identification, lambda: require(obs.get("stopped") and obs.get("graceful"), "采集器未正常终止，或没有 STOP 记录"), lambda: require(obs.get("decoy_alive"), "误杀了另一个采集器"), lambda: require(text(out / "collector-sample.log").count(f"TICK {obs['token']} ") >= 2, "至少保存两条目标采集器日志"), lambda: (equal(out / "server.conf", f"bind=127.0.0.1\nport={obs['target_port']}\nroute=/status\n"), require(obs.get("old_stopped"), "原错误服务没有停止")), lambda: (require(obs.get("http") == (200, "SENTRY READY\n"), f"教师实际请求失败：{obs.get('http')}"), equal(out / "http-status.txt", "200\n"), equal(out / "http-body.txt", "SENTRY READY\n")), lambda: require(obs.get("cleanup") is True and not tcp_open(obs["target_port"]), f"服务清理失败：{obs.get('cleanup')}")]
     else:
         checks = [lambda: require(obs.get("detached"), "指定 tmux 会话不存在或仍有客户端附着"), lambda: require(obs.get("growth"), "脚本返回后日志没有继续增长"), lambda: require(obs.get("cleanup"), "会话或采集器没有清理")]
@@ -409,19 +495,26 @@ def evaluate(runtime, selected):
         for index, (label, weight) in enumerate(criteria):
             errors = []
             pending = any(case.pending for case in cases)
+            case_details = []
             for case in cases:
                 if case.pending:
+                    case_details.append({"case": case.name, "status": "pending", "message": "尚未实现"})
                     continue
                 try:
                     require(case.error is None, case.error)
                     assert_check(case, index)
+                    case_details.append({"case": case.name, "status": "passed", "message": "检查通过"})
                 except Exception as exc:
-                    errors.append(f"{case.name}: {exc}")
+                    message = str(exc)
+                    errors.append(f"{case.name}: {message}")
+                    case_details.append({"case": case.name, "status": "failed", "message": message,
+                                         "stage": "execution" if case.error is not None else "assertion"})
             status = "failed" if errors else "pending" if pending else "passed"
-            checks.append({"name": label, "max_points": weight, "points": weight if status == "passed" else 0, "status": status, "feedback": "\n".join(errors) if errors else "尚未实现" if pending else "全部公开场景通过"})
+            checks.append({"name": label, "max_points": weight, "points": weight if status == "passed" else 0, "status": status, "cases": case_details, "feedback": "\n".join(errors) if errors else "尚未实现" if pending else "全部公开场景通过"})
         result = {"question": q, "title": title, "points": sum(c["points"] for c in checks), "max_points": sum(c["max_points"] for c in checks), "status": "passed" if all(c["status"] == "passed" for c in checks) else "pending" if all(c["status"] == "pending" for c in checks) else "failed", "checks": checks}
         results.append(result)
-        runtime.progress(f"  {result['status']}: {result['points']}/{result['max_points']}")
+        for line in question_lines(result, cases):
+            runtime.progress(line)
         for case in cases:
             runtime.archive(case)
             case.close()

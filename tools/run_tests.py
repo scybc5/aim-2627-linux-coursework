@@ -16,11 +16,13 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tests.coursework import TASKS, evaluate  # noqa: E402
+from tools.feedback import execution_lines  # noqa: E402
 
 
 class Runtime:
-    def __init__(self, submission, results):
+    def __init__(self, submission, results, verbose=False):
         self.results = results
+        self.verbose = verbose
         self.base = Path(tempfile.mkdtemp(prefix="aim-linux public tests "))
         self.base.chmod(0o755)
         suffix = f"{os.getpid():x}"
@@ -68,11 +70,14 @@ class Runtime:
     def env(self):
         return {"PATH": "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin", "HOME": self.home, "USER": self.user, "LOGNAME": self.user, "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "PYTHONDONTWRITEBYTECODE": "1"}
 
-    def spawn_student(self, args, cwd=None, stdout=None, stderr=None):
-        return subprocess.Popen(args, cwd=cwd or self.base, env=self.env, preexec_fn=self.drop_privileges, start_new_session=True, stdin=subprocess.DEVNULL, stdout=stdout if stdout is not None else subprocess.PIPE, stderr=stderr if stderr is not None else subprocess.PIPE, text=True)
+    def spawn_student(self, args, cwd=None, stdout=None, stderr=None, diagnose=False):
+        env = self.env
+        if diagnose:
+            env["BASH_ENV"] = str(self.tools / "bash_diagnostics.sh")
+        return subprocess.Popen(args, cwd=cwd or self.base, env=env, preexec_fn=self.drop_privileges, start_new_session=True, stdin=subprocess.DEVNULL, stdout=stdout if stdout is not None else subprocess.PIPE, stderr=stderr if stderr is not None else subprocess.PIPE, text=True)
 
-    def student(self, args, cwd=None, timeout=5):
-        proc = self.spawn_student(args, cwd)
+    def student(self, args, cwd=None, timeout=5, diagnose=False):
+        proc = self.spawn_student(args, cwd, diagnose=diagnose)
         try:
             stdout, stderr = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -85,7 +90,15 @@ class Runtime:
         print(message, flush=True)
 
     def record(self, case, action, proc):
-        self.records.append({"question": case.question, "case": case.name, "action": action, "exit_code": proc.returncode, "stdout": proc.stdout[-4000:], "stderr": proc.stderr[-4000:]})
+        script = "bonus.sh" if case.question == "B" else case.question.lower() + ".sh"
+        record = {"question": case.question, "case": case.name, "action": action,
+                  "attempt": case.attempts, "script": script, "exit_code": proc.returncode,
+                  "stdout": proc.stdout[-4000:], "stderr": proc.stderr[-4000:],
+                  "stdout_truncated": len(proc.stdout) > 4000,
+                  "stderr_truncated": len(proc.stderr) > 4000}
+        self.records.append(record)
+        for line in execution_lines(record, self.verbose):
+            self.progress(line)
 
     def archive(self, case):
         # Only designated text outputs, never private keys or test inputs.
@@ -137,6 +150,7 @@ def main():
     parser.add_argument("--submission", type=Path, default=ROOT / "src/main")
     parser.add_argument("--results", type=Path, default=ROOT / "generated")
     parser.add_argument("--question", choices=list(TASKS), action="append")
+    parser.add_argument("--verbose", action="store_true", help="同时显示成功执行时的 stdout/stderr")
     args = parser.parse_args()
     if sys.platform != "linux" or os.geteuid() != 0:
         parser.error("请在 Ubuntu 上通过 bash tools/test.sh 运行。测试器需要 sudo，学生脚本以临时普通用户执行。")
@@ -154,7 +168,7 @@ def main():
     shutil.rmtree(args.results / "artifacts", ignore_errors=True)
     runtime = None
     try:
-        runtime = Runtime(args.submission.resolve(), args.results.resolve())
+        runtime = Runtime(args.submission.resolve(), args.results.resolve(), verbose=args.verbose)
         selected = list(dict.fromkeys(args.question or list(TASKS)))
         questions = evaluate(runtime, selected)
         required = [q for q in questions if q["question"] != "B"]
@@ -185,6 +199,8 @@ def main():
         lines += ["完整分项见 score.json，执行输出见 runs.json，指定文本产物见 artifacts/。", "", "正式提交请提交本仓库的对应 Actions run 链接【腾讯文档】AIM 2627 Linux Coursework 回执 https://docs.qq.com/form/page/DWlZKTFBibGR2T2tG", ""]
         (args.results / "summary.md").write_text("\n".join(lines))
         print(f"必做 {points}/100，Bonus {bonus}/10；{conclusion}")
+        print(f"完整报告：{args.results.resolve() / 'summary.md'}")
+        print(f"逐次执行输出：{args.results.resolve() / 'runs.json'}")
         if args.question:
             return 0 if all(q["status"] in {"passed", "pending"} for q in questions) else 1
         return 0 if passed or (all_pending and pristine) else 1

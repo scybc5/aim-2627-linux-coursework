@@ -7,5 +7,15 @@ if [ "$(uname -s)" != Linux ]; then
     exit 2
 fi
 mkdir -p "$root/generated"
-sudo python3 "$root/tools/run_tests.py" \
-    --submission "$root/src/main" --results "$root/generated" "$@"
+printf 'Linux Coursework 自测（默认显示小项和失败原因）\n答题目录：%s\n报告目录：%s\n\n' \
+    "$root/src/main" "$root/generated"
+if sudo python3 -u "$root/tools/run_tests.py" \
+    --submission "$root/src/main" --results "$root/generated" "$@"; then
+    test_status=0
+else
+    test_status=$?
+fi
+printf '\n报告保存在：%s\n' "$root/generated"
+printf '%s\n' '只重跑 Q3：bash tools/test.sh --question Q3' \
+    '查看全部执行输出：bash tools/test.sh --verbose'
+exit "$test_status"
