@@ -13,3 +13,4 @@ cat "${handover_dir}/robot-id.txt" > "${output}/robot-id.txt"
 cat "${handover_dir}/notes/welcome.txt" > "${output}/welcome.txt"
 
 exit 0
+
