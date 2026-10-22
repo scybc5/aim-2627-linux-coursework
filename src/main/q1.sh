@@ -12,5 +12,8 @@ echo "${real_handover}">"${output}/location.txt"
 cat "${handover_dir}/robot-id.txt" > "${output}/robot-id.txt"
 cat "${handover_dir}/notes/welcome.txt" > "${output}/welcome.txt"
 
-exit 0
+exit 0  
+
+
+
 
