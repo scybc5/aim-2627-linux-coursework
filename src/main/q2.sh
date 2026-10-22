@@ -11,7 +11,7 @@ mkdir -p "${ws}/scripts" "${ws}/config" "${ws}/logs" "${ws}/tmp"
 cat > "${ws}/scripts/hello.sh" <<'EOF'
 #!/bin/bash
 echo "Hello, AIM Linux!"
-EOF
+EOF  
 
 # robot.conf
 cat > "${ws}/config/robot.conf" <<'EOF'
